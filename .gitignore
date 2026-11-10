@@ -1,39 +1,40 @@
-# This file is used for Git repositories to specify intentionally untracked files that Git should ignore. 
-# If you are not using git, you can delete this file. For more information see: https://git-scm.com/docs/gitignore
-# For useful gitignore templates see: https://github.com/github/gitignore
-
-# Salesforce cache
+# Salesforce CLI state and local development caches
 .sf/
 .sfdx/
 .localdevserver/
-deploy-options.json
-.localdev
 
-# LWC VSCode autocomplete
-**/lwc/jsconfig.json
-
-# LWC Jest coverage reports
+# Dependencies, test output, and build artifacts
+node_modules/
 coverage/
+dist/
+build/
+.cache/
+.nyc_output/
 
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Eslint cache
-.eslintcache
-
-# Windows system files
-Thumbs.db
-ehthumbs.db
-[Dd]esktop.ini
-$RECYCLE.BIN/
-
-# Salesforce Analyzer results
-sca-results.csv
-sfca_results.json
-
-# Local environment variables
+# Local configuration / credentials (commit only sanitized examples)
 .env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.p12
+*.pfx
+*.key
+*client-secret*
+*client_secret*
+
+# Temporary logs and OAuth/API responses
+*.log
+curl.tmp
+sf_oauth_*.json
+
+# Archived retrieved metadata: store separately from source-controlled templates
+*.zip
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/*.log
+*.swp
+*~
