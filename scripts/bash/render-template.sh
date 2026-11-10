@@ -1,120 +1,216 @@
 #!/usr/bin/env bash
-# Render a Salesforce External Client App template without modifying the source.
+# Render Salesforce metadata templates using Bash and standard Unix tools.
+# Compatible with Git Bash on Windows and Linux-based IDE terminals.
 set -euo pipefail
 
 usage() {
-  cat <<'EOF'
+  cat <<'HELP'
 Usage:
-  bash scripts/render-template.sh APP_API_NAME RUN_AS_USERNAME [TEMPLATE_DIR] [OUTPUT_DIR]
+  bash scripts/bash/render-template.sh ORG_ALIAS APP_API_NAME RUN_AS_USERNAME CONTACT_PHONE [TEMPLATE_DIR] [OUTPUT_DIR]
 
 Example:
-  bash scripts/render-template.sh MyEventLogCollector target-user@example.com \
-    templates/force-app build/force-app
+  bash scripts/bash/render-template.sh cudev01 EventLogFileCollectorPOC \
+    'target-user@example.com' '+81-3-1234-5678'
 
-Required placeholders in XML and filenames:
-  @@APP_API_NAME@@
-  @@RUN_AS_USERNAME@@
+Defaults:
+  TEMPLATE_DIR = templates/force-app
+  OUTPUT_DIR   = build/ORG_ALIAS/APP_API_NAME/force-app
 
-The output directory must not exist. Source files are never modified.
-EOF
+Replacements (both filenames and text content):
+  @@APP_API_NAME@@     -> APP_API_NAME
+  @@RUN_AS_USERNAME@@  -> RUN_AS_USERNAME
+  @@CONTACT_PHONE@@    -> CONTACT_PHONE
+
+Each app gets its own directory within the org alias, allowing multiple apps.
+Output must not already exist; the input template is never modified.
+HELP
 }
-if [[ "${1:-}" == '-h' || "${1:-}" == '--help' ]]; then usage; exit 0; fi
-if (( $# < 2 || $# > 4 )); then usage >&2; exit 2; fi
-app_name=$1
-run_as=$2
-source_dir=${3:-templates/force-app}
-output_dir=${4:-build/force-app}
 
-python3 - "$app_name" "$run_as" "$source_dir" "$output_dir" <<'PY'
-import os
-import re
-import shutil
-import sys
-import tempfile
-from pathlib import Path
-from xml.sax.saxutils import escape
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+  usage
+  exit 0
+fi
 
-app, run_as, src_arg, dst_arg = sys.argv[1:]
-if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*', app):
-    sys.exit('ERROR: APP_API_NAME must start with a letter and contain only letters, digits, or underscores.')
-if not run_as.strip() or any(ch in run_as for ch in '\r\n\x00'):
-    sys.exit('ERROR: Invalid RUN_AS_USERNAME.')
+if (( $# < 4 || $# > 6 )); then
+  usage >&2
+  exit 2
+fi
 
-src = Path(src_arg).expanduser().resolve()
-dst = Path(dst_arg).expanduser().resolve()
-if not src.is_dir():
-    sys.exit(f'ERROR: Template directory not found: {src}')
-if dst.exists():
-    sys.exit(f'ERROR: Output directory already exists (no overwrite): {dst}')
-if src == dst or src in dst.parents or dst in src.parents:
-    sys.exit('ERROR: Source and output directories must not contain one another.')
+org_alias=$1
+app=$2
+run_as=$3
+contact_phone=$4
+source_arg=${5:-templates/force-app}
+output_arg=${6:-build/$org_alias/$app/force-app}
 
-values = {
-    '@@APP_API_NAME@@': app,
-    '@@RUN_AS_USERNAME@@': run_as,
+# Validate organization alias (used only as a directory name).
+if [[ ! $org_alias =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ||
+      $org_alias == . || $org_alias == .. ]]; then
+  echo 'ERROR: Invalid ORG_ALIAS.' >&2
+  exit 2
+fi
+
+# Validate application API name.
+if [[ ! $app =~ ^[A-Za-z][A-Za-z0-9_]*$ ]]; then
+  echo 'ERROR: Invalid APP_API_NAME.' >&2
+  exit 2
+fi
+
+# Validate Salesforce Run As username.
+if [[ ! $run_as =~ ^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+$ ]]; then
+  echo 'ERROR: RUN_AS_USERNAME must be an email-shaped username.' >&2
+  exit 2
+fi
+
+# Validate contact phone.
+phone_pattern="^[+0-9() .-]+$"
+if [[ ! $contact_phone =~ $phone_pattern ]]; then
+  echo 'ERROR: Invalid CONTACT_PHONE.' >&2
+  exit 2
+fi
+
+# Check required commands.
+for command in cp find grep mktemp mv sed mkdir rm dirname basename; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "ERROR: Required command not found: $command" >&2
+    exit 2
+  fi
+done
+
+if [[ ! -d $source_arg ]]; then
+  echo "ERROR: Template directory not found: $source_arg" >&2
+  exit 1
+fi
+
+source_dir=$(cd "$source_arg" && pwd -P)
+
+output_parent=$(dirname "$output_arg")
+output_name=$(basename "$output_arg")
+
+if [[ -z $output_name ||
+      $output_name == . ||
+      $output_name == .. ]]; then
+  echo 'ERROR: Invalid output directory.' >&2
+  exit 2
+fi
+
+mkdir -p "$output_parent"
+output_parent=$(cd "$output_parent" && pwd -P)
+output_dir="$output_parent/$output_name"
+
+if [[ -e $output_dir ]]; then
+  echo "ERROR: Output directory already exists: $output_dir" >&2
+  exit 1
+fi
+
+# Prevent overwriting or nesting within the source template.
+case "$output_dir/" in
+  "$source_dir/"*)
+    echo 'ERROR: Output cannot be inside the template directory.' >&2
+    exit 1
+    ;;
+esac
+
+case "$source_dir/" in
+  "$output_dir/"*)
+    echo 'ERROR: Template cannot be inside the output directory.' >&2
+    exit 1
+    ;;
+esac
+
+# Do not follow template symlinks.
+if [[ -n $(find "$source_dir" -type l -print -quit) ]]; then
+  echo 'ERROR: Symlinks in templates are not supported.' >&2
+  exit 1
+fi
+
+# Create temporary staging directory.
+stage=$(mktemp -d "$output_parent/.render-template.XXXXXXXX")
+
+cleanup() {
+  if [[ -d $stage ]]; then
+    rm -rf -- "$stage"
+  fi
 }
-pattern = re.compile(r'@@[A-Z][A-Z0-9_]*@@')
-# A temporary directory prevents partially completed deployment artifacts.
-dst.parent.mkdir(parents=True, exist_ok=True)
-stage = Path(tempfile.mkdtemp(prefix='.render-', dir=dst.parent))
-try:
-    count = 0
-    warnings = []
-    for root, dirs, files in os.walk(src, followlinks=False):
-        root_path = Path(root)
-        for name in dirs + files:
-            if (root_path / name).is_symlink():
-                raise ValueError(f'Symlinks are not allowed: {root_path / name}')
-        for filename in files:
-            path = root_path / filename
-            relative = path.relative_to(src)
-            new_parts = []
-            for part in relative.parts:
-                for token, value in values.items():
-                    # Only APP_API_NAME is expected in metadata filenames.
-                    if token == '@@RUN_AS_USERNAME@@' and token in part:
-                        raise ValueError(f'Username placeholder is not allowed in a filename: {relative}')
-                    part = part.replace(token, value)
-                if pattern.search(part):
-                    raise ValueError(f'Unresolved filename placeholder: {part}')
-                new_parts.append(part)
-            target = stage.joinpath(*new_parts)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if target.exists():
-                raise ValueError(f'Output path collision: {target}')
-            if path.suffix.lower() in {'.xml', '.json', '.md', '.txt', '.yml', '.yaml'}:
-                contents = path.read_text(encoding='utf-8-sig')
-                for token, value in values.items():
-                    contents = contents.replace(token, escape(value) if path.suffix.lower() == '.xml' else value)
-                unresolved = pattern.findall(contents)
-                if unresolved:
-                    raise ValueError(f'Unresolved placeholders in {relative}: {sorted(set(unresolved))}')
-                if path.suffix.lower() == '.xml':
-                    # Ignore references contained only in XML comments.
-                    no_comments = re.sub(r'<!--.*?-->', '', contents, flags=re.S)
-                    if re.search(r'<\s*oauthLink(?:\s|/|>)', no_comments):
-                        raise ValueError(f'Active oauthLink element remains in {relative}; remove it from the template.')
-                    if re.search(r'<orgScopedExternalApp>[^<]+</orgScopedExternalApp>', no_comments):
-                        warnings.append(f'{relative}: orgScopedExternalApp is present; review for source-org references.')
-                    if '<contactEmail>' in no_comments or '<contactPhone>' in no_comments:
-                        warnings.append(f'{relative}: contact information is present; verify it belongs to the target org.')
-                target.write_text(contents, encoding='utf-8', newline='\n')
-            else:
-                shutil.copy2(path, target)
-            count += 1
-    if count == 0:
-        raise ValueError('Template directory contains no files.')
-    stage.rename(dst)
-except Exception as exc:
-    shutil.rmtree(stage, ignore_errors=True)
-    sys.exit(f'ERROR: {exc}')
 
-print(f'Generated {count} file(s) in {dst}')
-print(f'Application API name: {app}')
-print('Run As username: configured (not printed)')
-if warnings:
-    print('WARNINGS:')
-    for warning in sorted(set(warnings)):
-        print(f'  - {warning}')
-print('Review generated files and deployment dependencies before running sf project deploy start.')
-PY
+trap cleanup EXIT
+
+# Copy template without modifying the original.
+cp -R "$source_dir"/. "$stage"/
+
+# Rename files and directories, deepest entries first.
+while IFS= read -r -d '' path; do
+  name=${path##*/}
+
+  new_name=${name//@@APP_API_NAME@@/$app}
+  new_name=${new_name//@@RUN_AS_USERNAME@@/$run_as}
+  new_name=${new_name//@@CONTACT_PHONE@@/$contact_phone}
+
+  if [[ $name != "$new_name" ]]; then
+    mv -- "$path" "${path%/*}/$new_name"
+  fi
+done < <(find "$stage" -depth -mindepth 1 -print0)
+
+# Replace placeholders in text files.
+count=0
+
+while IFS= read -r -d '' path; do
+  ((count+=1))
+
+  case "$path" in
+    *.xml|*.json|*.md|*.txt|*.yaml|*.yml)
+      sed -i \
+        -e "s|@@APP_API_NAME@@|$app|g" \
+        -e "s|@@RUN_AS_USERNAME@@|$run_as|g" \
+        -e "s|@@CONTACT_PHONE@@|$contact_phone|g" \
+        "$path"
+      ;;
+  esac
+done < <(find "$stage" -type f -print0)
+
+if (( count == 0 )); then
+  echo 'ERROR: Template directory contains no files.' >&2
+  exit 1
+fi
+
+# Check unresolved placeholders in filenames.
+if find "$stage" -print |
+   grep -Eq '@@[A-Z][A-Z0-9_]*@@'; then
+  echo 'ERROR: Unresolved placeholder remains in a filename.' >&2
+  exit 1
+fi
+
+# Check unresolved placeholders in file content.
+if grep -R -I -n -E '@@[A-Z][A-Z0-9_]*@@' "$stage"; then
+  echo 'ERROR: Unresolved placeholder remains in file content.' >&2
+  exit 1
+fi
+
+# Reject active oauthLink elements.
+# XML comments containing <oauthLink/> are not rejected.
+if grep -R -n -E \
+  '^[[:space:]]*<oauthLink([[:space:]/>])' \
+  "$stage" --include='*.xml'; then
+  echo 'ERROR: Active oauthLink element found.' >&2
+  exit 1
+fi
+
+# Publish completed result.
+mv -- "$stage" "$output_dir"
+trap - EXIT
+
+printf 'Generated %d file(s): %s\n' "$count" "$output_dir"
+printf 'Organization alias: %s\n' "$org_alias"
+printf 'Application API name: %s\n' "$app"
+
+echo 'Run As username: configured (not displayed)'
+echo 'Contact phone: configured (not displayed)'
+
+# Deployment reminders.
+if grep -R -I -q -E \
+  '<orgScopedExternalApp>|<contactEmail>|<contactPhone>' \
+  "$output_dir"; then
+  echo 'WARNING: Review org-specific metadata before deployment.'
+fi
+
+echo 'NOTE: Global OAuth Settings and Run As configuration must be verified before deployment.'

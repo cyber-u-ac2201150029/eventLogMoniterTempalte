@@ -3,7 +3,7 @@
     <commaSeparatedOauthScopes>Api, RefreshToken, Lightning</commaSeparatedOauthScopes>
     <externalClientApplication>@@APP_API_NAME@@</externalClientApplication>
     <isFirstPartyAppEnabled>false</isFirstPartyAppEnabled>
-    <label>EventLogFileCollectorPOC_oauth</label>
+    <label>@@APP_API_NAME@@_oauth</label>
     <!--
         The oauthLink element is intentionally omitted to prevent
         referencing the OAuth consumer from the source Salesforce org.

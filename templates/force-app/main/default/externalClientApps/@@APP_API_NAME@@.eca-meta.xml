@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExternalClientApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <contactEmail>@@RUN_AS_USERNAME@@</contactEmail>
+    <contactPhone>@@CONTACT_PHONE@@</contactPhone>
+    <description>Developer Edition EventLogFile collection PoC using OAuth Client Credentials Flow.</description>
+    <distributionState>Local</distributionState>
+    <iconUrl>https://login.salesforce.com/logos/Standard/apps/icon.png</iconUrl>
+    <isProtected>false</isProtected>
+    <label>@@APP_API_NAME@@</label>
+    <logoUrl>https://login.salesforce.com/logos/Standard/connected_apps/logo.svg</logoUrl>
+    <!--
+        The orgScopedExternalApp element is intentionally omitted to prevent
+        referencing the External Client App identifier from the source Salesforce org.
+
+        When this External Client App is initially deployed to another org,
+        Salesforce generates a new org-scoped External Client App identifier
+        for the target org.
+
+        After deployment, retrieving the External Client Application metadata
+        from the target org will return the newly generated
+        orgScopedExternalApp value in the following format:
+
+            [Organization ID]:[External Client App Name]
+
+        IMPORTANT:
+        Do not restore the source org's orgScopedExternalApp value.
+        Do not add an empty or self-closing orgScopedExternalApp element
+        (e.g., <orgScopedExternalApp/>).
+        The orgScopedExternalApp element must be completely omitted from the
+        initial deployment template, including its opening and closing tags.
+
+        For subsequent updates to the same External Client App, preserve
+        the orgScopedExternalApp value retrieved from the target org.
+    -->    
+</ExternalClientApplication>

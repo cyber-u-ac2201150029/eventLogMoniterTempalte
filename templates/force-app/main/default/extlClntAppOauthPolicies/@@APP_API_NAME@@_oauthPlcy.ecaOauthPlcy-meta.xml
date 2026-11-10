@@ -6,7 +6,7 @@
     <isClientCredentialsFlowEnabled>true</isClientCredentialsFlowEnabled>
     <isGuestCodeCredFlowEnabled>false</isGuestCodeCredFlowEnabled>
     <isTokenExchangeFlowEnabled>false</isTokenExchangeFlowEnabled>
-    <label>@@OAUTH_POLICY_NAME@@_oauthPlcy</label>
+    <label>@@APP_API_NAME@@_oauthPlcy</label>
     <permittedUsersPolicyType>AllSelfAuthorized</permittedUsersPolicyType>
     <refreshTokenPolicyType>SpecificInactivity</refreshTokenPolicyType>
     <refreshTokenValidityPeriod>30</refreshTokenValidityPeriod>
