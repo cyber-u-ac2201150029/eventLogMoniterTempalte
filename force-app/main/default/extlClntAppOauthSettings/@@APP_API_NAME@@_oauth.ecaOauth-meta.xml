@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtlClntAppOauthSettings xmlns="http://soap.sforce.com/2006/04/metadata">
+    <commaSeparatedOauthScopes>Api, RefreshToken, Lightning</commaSeparatedOauthScopes>
+    <externalClientApplication>@@APP_API_NAME@@</externalClientApplication>
+    <isFirstPartyAppEnabled>false</isFirstPartyAppEnabled>
+    <label>EventLogFileCollectorPOC_oauth</label>
+    <!--
+        The oauthLink element is intentionally omitted to prevent
+        referencing the OAuth consumer from the source Salesforce org.
+
+        When this External Client App is deployed to another org,
+        a new OAuth consumer and an org-specific OAuth link are created,
+        provided that the required Global OAuth Settings are deployed.
+
+        After deployment, retrieving the OAuth Settings metadata from
+        the target org will return the newly generated oauthLink value.
+
+        IMPORTANT:
+        Do not restore the source org's oauthLink.
+        Do not add an empty or self-closing oauthLink element
+        (e.g., <oauthLink/>).
+        The oauthLink element must be completely omitted from the
+        deployment template, including its opening and closing tags.
+    -->
+</ExtlClntAppOauthSettings>
