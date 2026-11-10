@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtlClntAppGlobalOauthSettings xmlns="http://soap.sforce.com/2006/04/metadata">
+    <callbackUrl>https://localhost/oauth/callback</callbackUrl>
+    <externalClientApplication>@@APP_API_NAME@@</externalClientApplication>
+    <isClientCredentialsFlowEnabled>true</isClientCredentialsFlowEnabled>
+    <isCodeCredFlowEnabled>false</isCodeCredFlowEnabled>
+    <isCodeCredPostOnly>false</isCodeCredPostOnly>
+    <isConsumerSecretOptional>true</isConsumerSecretOptional>
+    <isDPopEnabled>false</isDPopEnabled>
+    <isDeviceFlowEnabled>false</isDeviceFlowEnabled>
+    <isEnforceRefreshTokenTTL>true</isEnforceRefreshTokenTTL>
+    <isIntrospectAllTokens>false</isIntrospectAllTokens>
+    <isMtlsEnabled>false</isMtlsEnabled>
+    <isNamedUserJwtEnabled>false</isNamedUserJwtEnabled>
+    <isPkceRequired>true</isPkceRequired>
+    <isRefreshTokenRotationEnabled>true</isRefreshTokenRotationEnabled>
+    <isSecretRequiredForRefreshToken>false</isSecretRequiredForRefreshToken>
+    <isSecretRequiredForTokenExchange>true</isSecretRequiredForTokenExchange>
+    <isTokenExchangeEnabled>false</isTokenExchangeEnabled>
+    <label>@@APP_API_NAME@@_glbloauth</label>
+    <shouldRotateConsumerKey>false</shouldRotateConsumerKey>
+    <shouldRotateConsumerSecret>false</shouldRotateConsumerSecret>
+
+    <!--
+        The consumerKey and consumerSecret elements are intentionally omitted
+        to prevent reusing OAuth credentials from the source Salesforce org.
+
+        When this External Client App is initially deployed to another org
+        with its own Global OAuth Settings, Salesforce generates a new OAuth
+        consumer key and consumer secret for the target org.
+
+        After deployment, retrieving the Global OAuth Settings metadata
+        from the target org can return the generated consumerKey and
+        consumerSecret values, subject to the required permissions.
+
+        IMPORTANT:
+        Do not restore the source org's consumerKey or consumerSecret.
+        Do not add empty or self-closing elements
+        (e.g., <consumerKey/> or <consumerSecret/>).
+        Both elements must be completely omitted from this
+        initial deployment template.
+
+        Treat retrieved OAuth credentials as sensitive information.
+        Do not commit them to source control.
+    -->
+</ExtlClntAppGlobalOauthSettings>
